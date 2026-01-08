@@ -62,7 +62,7 @@ def autocorrelation(time_series):
     if n == 0:
         return np.array([], dtype=float)
 
-    n_with_padding = 2**int(np.ceil(np.log2(n)) + 1)
+    n_with_padding = 2 ** int(np.ceil(np.log2(n)) + 1)
     signal_padded = np.zeros(n_with_padding)
 
     if time_series.ndim == 1:
@@ -75,8 +75,10 @@ def autocorrelation(time_series):
             signal_acf += acf_1d(signal_padded, n_with_padding, n)
         return signal_acf
     else:
-        raise ValueError(f"Only 1-dimensional and 2-dimensional time series "
-                         f"are supported, got shape {time_series.shape}")
+        raise ValueError(
+            f"Only 1-dimensional and 2-dimensional time series "
+            f"are supported, got shape {time_series.shape}"
+        )
 
 
 @script_interface_register
@@ -324,6 +326,17 @@ class Analysis(ScriptInterfaceHelper):
             Where [0] contains the midpoints of the bins,
             and [1] contains the values of the minimal distance distribution function.
 
+    particle_non_bonded_energy()
+    Calculate the short-range non-bonded energy contribution of a single particle.
+
+        Notes
+        -----
+        This includes only short-range non-bonded interaction terms (e.g. Lennard-Jones,
+        WCA, etc., depending on enabled features). Electrostatic energy contributions
+        (both short-range real-space and long-range/k-space parts) are not included.
+
+    particle_energy()
+        Deprecated alias for :meth:`particle_non_bonded_energy`.
     """
     _so_name = "Analysis::Analysis"
     _so_creation_policy = "GLOBAL"
@@ -337,9 +350,10 @@ class Analysis(ScriptInterfaceHelper):
         "calc_rh",
         "angular_momentum",
         "structure_factor",
-        "distribution")
+        "distribution",
+    )
 
-    def min_dist(self, p1='default', p2='default'):
+    def min_dist(self, p1="default", p2="default"):
         """
         Minimal distance between two sets of particle types.
 
@@ -357,10 +371,10 @@ class Analysis(ScriptInterfaceHelper):
 
         """
 
-        if p1 == 'default' and p2 == 'default':
+        if p1 == "default" and p2 == "default":
             p1 = []
             p2 = []
-        elif p1 == 'default' or p2 == 'default':
+        elif p1 == "default" or p2 == "default":
             raise ValueError("Both p1 and p2 have to be specified")
         return self.call_method("min_dist", p_types1=p1, p_types2=p2)
 
@@ -506,9 +520,17 @@ class Analysis(ScriptInterfaceHelper):
         observable = self.call_method("calculate_energy")
         return self._generate_summary(observable, 1, False)
 
-    def particle_energy(self, particle):
+    def particle_non_bonded_energy(self, particle):
         """
-        Calculate the non-bonded energy of a single given particle.
+        Calculate the short-range non-bonded energy contribution associated with
+        a single particle.
+
+        Notes
+        -----
+        This value includes short-range non-bonded interaction terms (e.g. LJ/WCA,
+        etc., depending on enabled features). It does **not** include electrostatic
+        energy contributions (neither the short-range real-space part nor any
+        long-range/k-space part).
 
         Parameters
         ----------
@@ -516,11 +538,28 @@ class Analysis(ScriptInterfaceHelper):
 
         Returns
         -------
-        :obj: `float`
-            Non-bonded energy of that particle
-
+        :obj:`float`
+            Short-range non-bonded energy contribution for that particle.
         """
         return self.call_method("particle_energy", pid=particle.id)
+
+    def particle_energy(self, particle):
+        """
+        Deprecated alias for :meth:`particle_non_bonded_energy`.
+
+        Notes
+        -----
+        This method will be removed in a future release. Use
+        :meth:`particle_non_bonded_energy` instead.
+        """
+        import warnings
+
+        warnings.warn(
+            "particle_energy() is deprecated, use particle_non_bonded_energy() instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.particle_non_bonded_energy(particle)
 
     def particle_bond_energy(self, particle, bond):
         """
@@ -538,8 +577,12 @@ class Analysis(ScriptInterfaceHelper):
 
         """
         interaction, *partners = bond
-        return self.call_method("particle_bond_energy", pid=particle.id,
-                                bond_id=interaction._bond_id, partners=partners)
+        return self.call_method(
+            "particle_bond_energy",
+            pid=particle.id,
+            bond_id=interaction._bond_id,
+            partners=partners,
+        )
 
     def dpd_stress(self):
         assert_features("DPD")
@@ -571,8 +614,9 @@ class Analysis(ScriptInterfaceHelper):
         """
         if p_type is None:
             raise ValueError(
-                "The p_type keyword argument must be provided (particle type)")
-        if not hasattr(p_type, '__iter__'):
+                "The p_type keyword argument must be provided (particle type)"
+            )
+        if not hasattr(p_type, "__iter__"):
             p_type = [p_type]
         vec = self.call_method("gyration_tensor", p_types=p_type)
         mat = np.reshape(vec, (3, 3))
@@ -588,7 +632,8 @@ class Analysis(ScriptInterfaceHelper):
             "shape": [aspheric, acylindric, rel_shape_anis],
             "eva0": (w[order[0]], v[:, order[0]]),
             "eva1": (w[order[1]], v[:, order[1]]),
-            "eva2": (w[order[2]], v[:, order[2]])}
+            "eva2": (w[order[2]], v[:, order[2]]),
+        }
 
     def moment_of_inertia_matrix(self, p_type=None):
         """
@@ -615,7 +660,7 @@ class Analysis(ScriptInterfaceHelper):
 
         def zero():
             if dim == 1 or calc_sp:
-                return 0.
+                return 0.0
             return np.zeros(9, dtype=float)
 
         def reduction(obj, key):
